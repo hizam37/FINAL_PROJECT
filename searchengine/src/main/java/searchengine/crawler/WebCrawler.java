@@ -93,7 +93,6 @@ public class WebCrawler extends RecursiveAction {
                     }
                     indexRepository.saveAll(indexList);
                 } catch (InterruptedException | IOException e) {
-                    site.setStatus(Status.INDEXED);
                     site.setLastError("Ошибка индексации: главная\n" +
                             "страница сайта недоступна");
                     siteRepository.save(site);

@@ -21,6 +21,7 @@ import searchengine.repository.SiteRepository;
 import searchengine.services.IndexService;
 import searchengine.crawler.WebCrawler;
 import searchengine.crawler.WebCrawlerExecutor;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -48,10 +49,10 @@ public class IndexServiceImp implements IndexService {
         pageRepository.deleteAll();
         siteRepository.deleteAll();
         indexRepository.deleteAll();
+        WebCrawler.stop = false;
         if (isIndexing()) {
             return new IndexResponse(false, "Индексация уже запущена");
         }
-        WebCrawler.stop = false;
         for (SiteFromConf siteFromConf1 : sitesList.getSites()) {
             Site site = new Site();
             Page page = new Page();
@@ -67,6 +68,7 @@ public class IndexServiceImp implements IndexService {
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             executorService.submit(webCrawlerExecutor);
         }
+
         return new IndexResponse(true, "");
     }
 
