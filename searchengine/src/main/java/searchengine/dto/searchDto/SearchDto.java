@@ -1,9 +1,10 @@
 package searchengine.dto.searchDto;
 
 import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.ToString;
+
 @Data
-@NoArgsConstructor
+@ToString
 public class SearchDto {
     private String site;
     private String siteName;

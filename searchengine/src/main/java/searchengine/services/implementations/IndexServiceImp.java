@@ -21,6 +21,7 @@ import searchengine.repository.SiteRepository;
 import searchengine.services.IndexService;
 import searchengine.crawler.WebCrawler;
 import searchengine.crawler.WebCrawlerExecutor;
+import searchengine.util.LinkStructure;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -68,7 +69,6 @@ public class IndexServiceImp implements IndexService {
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             executorService.submit(webCrawlerExecutor);
         }
-
         return new IndexResponse(true, "");
     }
 
@@ -93,29 +93,26 @@ public class IndexServiceImp implements IndexService {
     }
 
     @Override
-    public IndexResponse indexPage(String url) throws IOException {
+    public IndexResponse indexPage(String link) throws IOException {
         stopIndexing = false;
         List<IndexTable> indexList = new ArrayList<>();
-        String pathFormat = getPathFormat(url);
-        String link = getLink(url);
-        String nameOfSite = getNameOfSite(url);
+        LinkStructure linkStructure = getFromLink(link);
         Page paths;
         LocalDateTime statusTime = LocalDateTime.now();
-        log.info("url " + link);
-        Site site = siteRepository.findSiteByUrl(link);
+        Site site = siteRepository.findSiteByUrl(linkStructure.getUrl());
         if (site == null) {
             site = new Site();
-            site.setName(nameOfSite);
+            site.setName(linkStructure.getNameOfSite());
         }
         site.setStatus(Status.INDEXING);
         Lemma existingLemma;
-        site.setUrl(link);
+        site.setUrl(linkStructure.getUrl());
         paths = new Page();
-        paths.setPath(Objects.requireNonNullElse(pathFormat, ""));
+        paths.setPath(Objects.requireNonNullElse(linkStructure.getPath(), ""));
         site.setStatusTime(statusTime);
-        updatePath(paths, site);
+        updatePath(site, paths);
         try {
-            Connection.Response connection = Jsoup.connect(url).ignoreContentType(true)
+            Connection.Response connection = Jsoup.connect(link).ignoreContentType(true)
                     .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(7)).toString())
                     .referrer(networkSettings.getReferrer())
                     .timeout(networkSettings.getTimeout())
@@ -180,57 +177,39 @@ public class IndexServiceImp implements IndexService {
         return false;
     }
 
-    public void updatePath(Page path, Site site) {
-        List<Site> sites = siteRepository.findAll();
-        List<Page> pages = pageRepository.findAll();
-        for (Site perSite : sites) {
-            for (Page perPage : pages) {
-                if (perSite.getUrl().equals(site.getUrl())
-                        && perPage.getPath().equals(path.getPath())
-                        && Objects.equals(perSite.getId(), perPage.getSite().getId())) {
-                    List<Integer> lemmaId = indexRepository.findLemmasIdByPageId(perPage.getId());
-                    List<Lemma> lemmaList = lemmaRepository.findByLemmaIds(lemmaId);
-                    for (Lemma perLemma : lemmaList) {
-                        if (perLemma.getFrequency() > 1) {
-                            log.info("HIGH FREQ FOUND " + perLemma.getFrequency() + " for word " + perLemma.getLemma());
-                            perLemma.setFrequency(perLemma.getFrequency() - 1);
-                            lemmaRepository.save(perLemma);
-                        } else {
-                            lemmaRepository.delete(perLemma);
-                        }
+    public void updatePath(Site site, Page page) {
+        List<Page> existingPage = pageRepository.findPageBySiteId(site.getId());
+        for (Page page1 : existingPage) {
+            if (page1 != null && page1.getPath().equals(page.getPath())) {
+                List<Integer> lemmaId = indexRepository.findLemmasIdByPageId(page1.getId());
+                List<Lemma> lemmaList = lemmaRepository.findByLemmaIds(lemmaId);
+                for (Lemma perLemma : lemmaList) {
+                    if (perLemma.getFrequency() > 1) {
+                        perLemma.setFrequency(perLemma.getFrequency() - 1);
+                        lemmaRepository.save(perLemma);
+                    } else {
+                        lemmaRepository.delete(perLemma);
                     }
-                    pageRepository.deleteById(perPage.getId());
-                    indexRepository.deleteByPageId(perPage.getId());
                 }
+                pageRepository.deleteById(page1.getId());
+                indexRepository.deleteByPageId(page1.getId());
             }
         }
     }
 
-    public static String getLink(String link) {
-        Pattern urlPattern = Pattern.compile("(https?://[^/]+)(/[^?#]*)?");
-        Matcher urlMatcher = urlPattern.matcher(link);
-        if (urlMatcher.matches()) {
-            return urlMatcher.group(1);
-        }
-        return null;
-    }
 
-    public static String getPathFormat(String path) {
-        Pattern pathPattern = Pattern.compile("(https?://[^/]+)(/[^?#]*)?");
-        Matcher pathMatcher = pathPattern.matcher(path);
-        if (pathMatcher.matches()) {
-            return pathMatcher.group(2);
+    private LinkStructure getFromLink(String link){
+        LinkStructure structure = new LinkStructure();
+        Pattern pathPattern = Pattern.compile("(https?://)([^/]+)(/[^?#]*)?");
+        Matcher linkMatcher = pathPattern.matcher(link);
+        if (linkMatcher.matches()) {
+            structure.setUrl(linkMatcher.group(1) + linkMatcher.group(2));
         }
-        return null;
-    }
-
-    public static String getNameOfSite(String path) {
-        Pattern pathPattern = Pattern.compile("(?:https?://)?(?:www\\.)?([^./]+)\\..*");
-        Matcher pathMatcher = pathPattern.matcher(path);
-        if (pathMatcher.matches()) {
-            return pathMatcher.group(1);
+        if (linkMatcher.matches()) {
+            structure.setNameOfSite(linkMatcher.group(2));
+            structure.setPath(linkMatcher.group(3));
         }
-        return null;
+        return structure;
     }
 
 }

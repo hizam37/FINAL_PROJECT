@@ -19,14 +19,14 @@ import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ForkJoinTask;
-import java.util.concurrent.RecursiveAction;
+import java.util.concurrent.*;
 import static java.lang.Thread.sleep;
 
 @AllArgsConstructor
 @Getter
 public class WebCrawler extends RecursiveAction {
 
-    private final CopyOnWriteArrayList<Page> siteMapChildren = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<Page> pages = new CopyOnWriteArrayList<>();
     private final NetworkSettings networkSettings;
     private Page path;
     public static volatile boolean stop = false;
@@ -57,17 +57,10 @@ public class WebCrawler extends RecursiveAction {
                         return;
                     }
                     sleep(5000);
-                    Connection.Response connection = Jsoup.connect(perLink)
-                            .ignoreContentType(true)
-                            .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(6)).toString())
-                            .referrer(networkSettings.getReferrer())
-                            .timeout(networkSettings.getTimeout())
-                            .followRedirects(false)
-                            .execute();
-                    Document document = connection.parse();
-                    path.setCode(connection.statusCode());
-                    String content = document.html();
-                    String wordsPerPath = document.text();
+                    Result result = connect(perLink);
+                    path.setCode(result.connection().statusCode());
+                    String content = result.document().html();
+                    String wordsPerPath = result.document().text();
                     path.setContent(content);
                     pageRepository.save(path);
                     indexTable.setPage(path);
@@ -102,32 +95,41 @@ public class WebCrawler extends RecursiveAction {
         indexRepository.save(indexTable);
         site.setStatus(Status.INDEXED);
         CopyOnWriteArrayList<WebCrawler> mapOfSiteTasks = new CopyOnWriteArrayList<>();
-        for (Page child : getSiteMapChildren()) {
-            WebCrawler webCrawlerTask = new WebCrawler(networkSettings, child, pageRepository, site, siteRepository, lemmaRepository, indexTable, indexRepository, lemma);
+        for (Page page : getPages()) {
+            WebCrawler webCrawlerTask = new WebCrawler(networkSettings, page, pageRepository, site, siteRepository, lemmaRepository, indexTable, indexRepository, lemma);
             mapOfSiteTasks.add(webCrawlerTask);
             webCrawlerTask.fork();
         }
         mapOfSiteTasks.forEach(ForkJoinTask::join);
     }
 
-    public void addChildren(Page children) {
-        siteMapChildren.add(children);
+    private Result connect(String perLink) throws IOException, InterruptedException {
+        sleep(5000);
+        Connection.Response connection = Jsoup.connect(perLink)
+                .ignoreContentType(true)
+                .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(6)).toString())
+                .referrer(networkSettings.getReferrer())
+                .timeout(networkSettings.getTimeout())
+                .followRedirects(false)
+                .execute();
+        Document document = connection.parse();
+        return new Result(connection, document);
+    }
+
+    private record Result(Connection.Response connection, Document document) {
+    }
+
+    public void addChildren(Page page) {
+        pages.add(page);
     }
 
 
     public ConcurrentSkipListSet<String> getUrls(String url) {
         ConcurrentSkipListSet<String> urls = new ConcurrentSkipListSet<>();
         try {
-            sleep(5000);
-            Connection.Response connection = Jsoup.connect(url)
-                    .ignoreContentType(true)
-                    .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(6)).toString())
-                    .referrer(networkSettings.getReferrer())
-                    .timeout(networkSettings.getTimeout())
-                    .followRedirects(false)
-                    .execute();
-            Document document = connection.parse();
-            Elements elements = document.select("body").select("a");
+            sleep(150);
+            Result result = connect(url);
+            Elements elements = result.document.select("body").select("a");
             for (Element perElement : elements) {
                 String link = perElement.absUrl("href");
                 if (isLink(link) && !isFile(link)) {

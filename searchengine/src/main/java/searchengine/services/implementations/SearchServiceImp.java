@@ -82,22 +82,22 @@ public class SearchServiceImp implements SearchService {
         List<SearchDto> searchDtoList = new ArrayList<>();
         Map<String, Integer> filteredLemmas = Lemmatizater.splitTextIntoWords(configuredSearch.getQuery());
         Map<String, Double> wordsWithFrequencies = new HashMap<>();
+        double countFreq = 0;
         for (Map.Entry<String, Integer> frequenciesWithLemmas : filteredLemmas.entrySet()) {
             log.info("WORD " + frequenciesWithLemmas.getKey());
             long totalPages = pageRepository.countByPage();
             log.info("total pages " + totalPages);
-            Double foundFrequencyByLemma = lemmaRepository.findFrequencyByLemma(frequenciesWithLemmas.getKey());
+            List<Double> foundFrequencyByLemma = lemmaRepository.findFrequencyByLemma(frequenciesWithLemmas.getKey());
             if (foundFrequencyByLemma == null) {
                 return new ArrayList<>();
             }
-            log.info("frequency " + foundFrequencyByLemma);
-            double percentage = (foundFrequencyByLemma / totalPages) * 100;
-            log.info("percentage " + percentage);
-            double leastPercentage = 50;
-            if (percentage > leastPercentage) {
-                wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
-                log.info("High lemma found " + frequenciesWithLemmas.getKey());
+            for (Double v : foundFrequencyByLemma) {
+                countFreq += v;
             }
+            double percentage = (countFreq / totalPages) * 100;
+            log.info("percentage " + percentage);
+            wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
+            log.info("High lemma found " + frequenciesWithLemmas.getKey());
         }
         Map<String, Double> lemmasInDesc = getLemmasInDesc(wordsWithFrequencies);
         Set<String> getLemma = lemmasInDesc.keySet();
@@ -134,26 +134,41 @@ public class SearchServiceImp implements SearchService {
     private void setSearchDtoList(ConfiguredSearch configuredSearch, List<Long> absoluteRelevance, List<SearchDto> searchDtoList, int i, SearchDto searchDto, Document doc) {
         String title = doc.title();
         searchDto.setTitle(title);
-        searchDto.setSnippet("<b>" + configuredSearch.getQuery() + "</b>");
+        String snippet = String.valueOf(doc.select(":containsOwn(" + configuredSearch.getQuery() + ")").first()).toLowerCase();
+        int indexOfTheSearchedWord = snippet.indexOf(configuredSearch.getQuery().toLowerCase());
+        if (indexOfTheSearchedWord != -1) {
+            String s = snippet
+                    .substring(indexOfTheSearchedWord)
+                    .replace(configuredSearch.getQuery(), "<b>" + configuredSearch.getQuery().toLowerCase() + "</b>");
+            int lengthOfText = Math.min(240, s.length());
+            System.out.println(lengthOfText);
+            StringBuilder st = new StringBuilder();
+            String lines = s.substring(0, lengthOfText);
+            st.append(lines);
+            searchDto.setSnippet(st.toString());
+        }
         double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
         searchDto.setRelevance(relevance);
         log.info("RELEVANCE " + relevance);
-        searchDtoList.add(searchDto);
+        log.info("SNIPPET " + searchDto.getSnippet());
+        if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) {
+            searchDtoList.add(searchDto);
+        }
     }
 
-    private void setSearchDtoForAllSites(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws IOException {
+
+    private void setSearchDtoForAllSites(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws
+            IOException {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
             searchDto.setSiteName(site.getName());
             log.info("PAGES FOUND " + page.get(i).getPath());
-            searchDto.setSite(configuredSearch.getSite());
             searchDto.setUri(page.get(i).getPath());
             Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
             setSearchDtoList(configuredSearch, absoluteRelevance, searchDtoList, i, searchDto, doc);
         }
     }
-
 }
 
 

@@ -22,4 +22,5 @@ public interface PageRepository extends JpaRepository<Page,Integer> {
     @Query("SELECT p FROM Page p WHERE  p.id IN :pageIds")
     List<Page> findPageByPageId(@Param("pageIds") List<Integer> pageIds);
 
+    List<Page> findPageBySiteId(Integer id);
 }

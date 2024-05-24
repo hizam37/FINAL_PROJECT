@@ -22,7 +22,7 @@ public interface LemmaRepository extends JpaRepository<Lemma,Integer> {
     Lemma findLemmaBySiteId(@Param("lemma") String lemma,@Param("siteId") Integer siteId);
 
     @Query("SELECT l.frequency FROM Lemma l WHERE l.lemma IN :lemma")
-    Double findFrequencyByLemma(@Param("lemma") String lemma);
+    List<Double> findFrequencyByLemma(@Param("lemma") String lemma);
 
     @Query("SELECT l.id FROM Lemma l WHERE l.lemma IN :lemmas AND l.site.id = :siteId")
     List<Integer> findLemmaIdsByLemmaAndSiteId(Set<String> lemmas, Integer siteId);
