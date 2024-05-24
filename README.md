@@ -27,13 +27,14 @@ Search - Поиск: Эта панель используется после и�
 
 # Результат
 
-![R2.JPG](..%2F..%2F..%2FDesktop%2FSEARCH%20ENGINE%20PICS%2FR2.JPG)
+![R2](https://github.com/hizam37/FINAL_PROJECT/assets/97097637/ca8ab32a-5422-473a-8f76-03a4d9977b1f)
 
 Теперь давайте поищем нужное слово на всех сайтах и на одном сайте.
 
 # Результат
 
-![ezgif.com-animated-gif-maker (3).gif](..%2F..%2F..%2FDesktop%2FSEARCH%20ENGINE%20PICS%2Fezgif.com-animated-gif-maker%20%283%29.gif)
+![ezgif com-animated-gif-maker (3)](https://github.com/hizam37/FINAL_PROJECT/assets/97097637/34fc206d-b56e-477c-9713-e222501ed5f8)
+
 
 # Используемая технология
 SpringBoot <br/>
