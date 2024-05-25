@@ -20,7 +20,8 @@ indexing-settings:
   sites:
   - url: http://www.playback.ru
     name: playback
-  -   
+  - url: https://www.goodcom.ru
+    name: goodcom
 network-settings:
   userAgents:
     - agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.72 Safari/537.36 Edg/90.0.818.42
