@@ -139,7 +139,7 @@ public class SearchServiceImp implements SearchService {
         if (indexOfTheSearchedWord != -1) {
             String s = snippet
                     .substring(indexOfTheSearchedWord)
-                    .replace(configuredSearch.getQuery(), "<b>" + configuredSearch.getQuery().toLowerCase() + "</b>")
+                    .replace(configuredSearch.getQuery().toLowerCase(), "<b>" + configuredSearch.getQuery().toLowerCase() + "</b>")
                     .replaceAll("<br>", " ");
             int lengthOfText = Math.min(240, s.length());
             System.out.println(lengthOfText);
