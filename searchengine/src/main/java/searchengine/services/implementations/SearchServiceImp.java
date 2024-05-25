@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.springframework.stereotype.Service;
 import searchengine.config.ConfiguredSearch;
 import searchengine.dto.relevances.AbsoluteRelevanceForAllSites;
@@ -134,7 +135,12 @@ public class SearchServiceImp implements SearchService {
     private void setSearchDtoList(ConfiguredSearch configuredSearch, List<Long> absoluteRelevance, List<SearchDto> searchDtoList, int i, SearchDto searchDto, Document doc) {
         String title = doc.title();
         searchDto.setTitle(title);
-        String snippet = String.valueOf(doc.select(":containsOwn(" + configuredSearch.getQuery() + ")").first()).toLowerCase();
+        String snippet = "";
+        Element element = doc.select(":containsOwn(" + configuredSearch.getQuery() + ")").first();
+        if(element!=null)
+        {
+            snippet = element.text().toLowerCase();
+        }
         int indexOfTheSearchedWord = snippet.indexOf(configuredSearch.getQuery().toLowerCase());
         if (indexOfTheSearchedWord != -1) {
             String s = snippet
