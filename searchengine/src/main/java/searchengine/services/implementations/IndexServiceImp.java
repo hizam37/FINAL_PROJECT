@@ -96,7 +96,7 @@ public class IndexServiceImp implements IndexService {
     public IndexResponse indexPage(String link) throws IOException {
         stopIndexing = false;
         List<IndexTable> indexList = new ArrayList<>();
-        LinkStructure linkStructure = getFromLink(link);
+        LinkStructure linkStructure = LinkStructure.getFromLink(link);
         Page paths;
         LocalDateTime statusTime = LocalDateTime.now();
         Site site = siteRepository.findSiteByUrl(linkStructure.getUrl());
@@ -198,18 +198,6 @@ public class IndexServiceImp implements IndexService {
     }
 
 
-    private LinkStructure getFromLink(String link){
-        LinkStructure structure = new LinkStructure();
-        Pattern pathPattern = Pattern.compile("(https?://)([^/]+)(/[^?#]*)?");
-        Matcher linkMatcher = pathPattern.matcher(link);
-        if (linkMatcher.matches()) {
-            structure.setUrl(linkMatcher.group(1) + linkMatcher.group(2));
-        }
-        if (linkMatcher.matches()) {
-            structure.setNameOfSite(linkMatcher.group(2));
-            structure.setPath(linkMatcher.group(3));
-        }
-        return structure;
-    }
+
 
 }

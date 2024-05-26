@@ -42,8 +42,8 @@ public class WebCrawlerExecutor implements Runnable {
 
     @Override
     public void run() {
-            WebCrawler webCrawler = new WebCrawler(networkSettings,page,pageRepository,site, siteRepository,lemmaRepository,indexTable,indexRepository,lemma);
-            forkJoinPool.invoke(webCrawler);
+        WebCrawler webCrawler = new WebCrawler(networkSettings,page,pageRepository,site, siteRepository,lemmaRepository,indexTable,indexRepository,lemma);
+        forkJoinPool.invoke(webCrawler);
     }
 
 }
