@@ -35,27 +35,20 @@ public class SearchServiceImp implements SearchService {
     @Override
     public List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException {
         List<SearchDto> searchDtoList = new ArrayList<>();
-        log.info("LINK USED " + configuredSearch.getSite());
         Site site = siteRepository.findSiteByUrl(configuredSearch.getSite());
-        log.info("SITE FOUND " + site.getUrl());
         Integer siteId;
         if (site.getUrl().equals(configuredSearch.getSite())) {
             siteId = siteRepository.getIdByUrl(site.getUrl());
-            log.info("FOUND ID " + site.getId());
             double leastPercentage = 50;
             Map<String, Integer> filteredLemmas = Lemmatizater.splitTextIntoWords(configuredSearch.getQuery());
             Map<String, Double> wordsWithFrequencies = new HashMap<>();
             for (Map.Entry<String, Integer> frequenciesWithLemmas : filteredLemmas.entrySet()) {
-                log.info("Lemma " + frequenciesWithLemmas.getKey());
                 long totalPages = pageRepository.countPageBySiteId(siteId);
-                log.info("total pages " + totalPages);
                 Double foundFrequencyByLemma = lemmaRepository.findFrequencyByLemmaAndSiteId(frequenciesWithLemmas.getKey(), siteId);
                 if (foundFrequencyByLemma == null) {
                     return new ArrayList<>();
                 }
-                log.info("frequency " + foundFrequencyByLemma);
                 double percentage = (foundFrequencyByLemma / totalPages) * 100;
-                log.info("percentage " + percentage);
                 if (percentage > leastPercentage) {
                     wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
                     log.info("High lemma found " + frequenciesWithLemmas.getKey());
@@ -96,9 +89,7 @@ public class SearchServiceImp implements SearchService {
                 countFreq += v;
             }
             double percentage = (countFreq / totalPages) * 100;
-            log.info("percentage " + percentage);
             wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
-            log.info("High lemma found " + frequenciesWithLemmas.getKey());
         }
         Map<String, Double> lemmasInDesc = getLemmasInDesc(wordsWithFrequencies);
         Set<String> getLemma = lemmasInDesc.keySet();
@@ -124,7 +115,6 @@ public class SearchServiceImp implements SearchService {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             searchDto.setSiteName(site.getName());
-            log.info("PAGES FOUND " + page.get(i).getPath());
             searchDto.setSite(configuredSearch.getSite());
             searchDto.setUri(page.get(i).getPath());
             Document doc = Jsoup.connect(configuredSearch.getSite() + page.get(i).getPath()).get();
@@ -156,8 +146,6 @@ public class SearchServiceImp implements SearchService {
         }
         double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
         searchDto.setRelevance(relevance);
-        log.info("RELEVANCE " + relevance);
-        log.info("SNIPPET " + searchDto.getSnippet());
         if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) {
             searchDtoList.add(searchDto);
         }
@@ -169,9 +157,8 @@ public class SearchServiceImp implements SearchService {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
-            searchDto.setSite(site.getUrl() + page.get(i).getPath());
+            searchDto.setSite(page.get(i).getSite().getUrl());
             searchDto.setSiteName(site.getName());
-            log.info("PAGES FOUND " + page.get(i).getPath());
             searchDto.setUri(page.get(i).getPath());
             Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
             setSearchDtoList(configuredSearch, absoluteRelevance, searchDtoList, i, searchDto, doc);
