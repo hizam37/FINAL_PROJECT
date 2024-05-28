@@ -66,7 +66,7 @@ public class SearchServiceImp implements SearchService {
             AbsoluteRelevanceForOneSite absoluteRelevanceForOneSite = getAbsoluteRelevanceByLemmaAndSiteId(getLemma, siteId);
             setSearchDtoForOneSite(configuredSearch, absoluteRelevanceForOneSite.page(), site, absoluteRelevanceForOneSite.absoluteRelevance(), searchDtoList);
         }
-        return searchDtoList.stream().limit(20).sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
+        return searchDtoList.stream().sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
     }
 
     private AbsoluteRelevanceForOneSite getAbsoluteRelevanceByLemmaAndSiteId(Set<String> getLemma, Integer siteId) {
@@ -104,7 +104,7 @@ public class SearchServiceImp implements SearchService {
         Set<String> getLemma = lemmasInDesc.keySet();
         AbsoluteRelevanceForAllSites relevancePerPage = getAbsoluteRelevanceByLemmas(getLemma);
         setSearchDtoForAllSites(configuredSearch, relevancePerPage.page(), relevancePerPage.absoluteRelevance(), searchDtoList);
-        return searchDtoList.stream().limit(20).sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
+        return searchDtoList.stream().sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
     }
 
     private AbsoluteRelevanceForAllSites getAbsoluteRelevanceByLemmas(Set<String> getLemma) {
@@ -169,6 +169,7 @@ public class SearchServiceImp implements SearchService {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
+            searchDto.setSite(site.getUrl() + page.get(i).getPath());
             searchDto.setSiteName(site.getName());
             log.info("PAGES FOUND " + page.get(i).getPath());
             searchDto.setUri(page.get(i).getPath());

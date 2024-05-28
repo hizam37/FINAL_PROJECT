@@ -12,6 +12,7 @@ import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.services.IndexService;
 import searchengine.services.SearchService;
 import searchengine.services.StatisticsService;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -50,13 +51,13 @@ public class StatisticsController {
 
 
     @GetMapping("/search")
-    public ResponseEntity<?> search(ConfiguredSearch configuredSearch) throws IOException {
-        List<SearchDto> searchResponse = configuredSearch.getSite() == null ?
-                searchService.searchByAllSites(configuredSearch) : searchService.searchBySite(configuredSearch);
-        return ResponseEntity.ok(searchResponse.isEmpty() ?
-                new FalseResponse(false, "Notfound") :
-                new SearchResponse(true, searchResponse.size(),
-                        searchResponse));
-    }
+    public ResponseEntity<?> search(ConfiguredSearch configuredSearch, @RequestParam(defaultValue = "20") int pageSize) throws IOException {
+        List<SearchDto> searchResponse = configuredSearch.getSite() == null ? searchService.searchByAllSites(configuredSearch) : searchService.searchBySite(configuredSearch);
+        int totalResults = searchResponse.size();
+        int startIndex = 0;
+        int endIndex = Math.min(startIndex + pageSize, totalResults);
+        List<SearchDto> displayedResults = searchResponse.subList(startIndex, endIndex);
+        return ResponseEntity.ok(searchResponse.isEmpty() ? new FalseResponse(false, "Not found") : new SearchResponse(true, totalResults, displayedResults));
 
+    }
 }
