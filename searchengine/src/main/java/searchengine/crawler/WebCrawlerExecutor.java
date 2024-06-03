@@ -1,7 +1,6 @@
 package searchengine.crawler;
 
 import lombok.extern.slf4j.Slf4j;
-import searchengine.config.NetworkSettings;
 import searchengine.model.IndexTable;
 import searchengine.model.Lemma;
 import searchengine.model.Page;

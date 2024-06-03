@@ -2,12 +2,9 @@ package searchengine.crawler;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.jsoup.Connection;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import searchengine.config.NetworkSettings;
 import searchengine.lemmatization.Lemmatizater;
 import searchengine.model.*;
 import searchengine.repository.IndexRepository;
@@ -16,7 +13,6 @@ import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 import searchengine.services.ConnecterService;
 import searchengine.services.LemmaService;
-
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
