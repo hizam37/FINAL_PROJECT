@@ -18,6 +18,7 @@ import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
 import searchengine.services.SearchService;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -36,10 +37,8 @@ public class SearchServiceImp implements SearchService {
     public List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException {
         List<SearchDto> searchDtoList = new ArrayList<>();
         Site site = siteRepository.findSiteByUrl(configuredSearch.getSite());
-        Integer siteId;
         if (site.getUrl().equals(configuredSearch.getSite())) {
-            siteId = siteRepository.getIdByUrl(site.getUrl());
-            double leastPercentage = 50;
+            Integer siteId = siteRepository.getIdByUrl(site.getUrl());
             Map<String, Integer> filteredLemmas = Lemmatizater.splitTextIntoWords(configuredSearch.getQuery());
             Map<String, Double> wordsWithFrequencies = new HashMap<>();
             for (Map.Entry<String, Integer> frequenciesWithLemmas : filteredLemmas.entrySet()) {
@@ -49,15 +48,13 @@ public class SearchServiceImp implements SearchService {
                     return new ArrayList<>();
                 }
                 double percentage = (foundFrequencyByLemma / totalPages) * 100;
-                if (percentage > leastPercentage) {
-                    wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
-                    log.info("High lemma found " + frequenciesWithLemmas.getKey());
-                }
+                wordsWithFrequencies.put(frequenciesWithLemmas.getKey(), percentage);
+                log.info("High lemma found " + frequenciesWithLemmas.getKey());
             }
             Map<String, Double> lemmasInDesc = getLemmasInDesc(wordsWithFrequencies);
             Set<String> getLemma = lemmasInDesc.keySet();
             AbsoluteRelevanceForOneSite absoluteRelevanceForOneSite = getAbsoluteRelevanceByLemmaAndSiteId(getLemma, siteId);
-            setSearchDtoForOneSite(configuredSearch, absoluteRelevanceForOneSite.page(), site, absoluteRelevanceForOneSite.absoluteRelevance(), searchDtoList);
+            setSearchDto(configuredSearch, absoluteRelevanceForOneSite.page(), absoluteRelevanceForOneSite.absoluteRelevance(), searchDtoList);
         }
         return searchDtoList.stream().sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
     }
@@ -94,7 +91,7 @@ public class SearchServiceImp implements SearchService {
         Map<String, Double> lemmasInDesc = getLemmasInDesc(wordsWithFrequencies);
         Set<String> getLemma = lemmasInDesc.keySet();
         AbsoluteRelevanceForAllSites relevancePerPage = getAbsoluteRelevanceByLemmas(getLemma);
-        setSearchDtoForAllSites(configuredSearch, relevancePerPage.page(), relevancePerPage.absoluteRelevance(), searchDtoList);
+        setSearchDto(configuredSearch, relevancePerPage.page(), relevancePerPage.absoluteRelevance(), searchDtoList);
         return searchDtoList.stream().sorted(Comparator.comparing(SearchDto::getRelevance, Comparator.reverseOrder())).toList();
     }
 
@@ -111,13 +108,15 @@ public class SearchServiceImp implements SearchService {
         return wordsWithFrequencies.entrySet().stream().sorted(Map.Entry.comparingByValue(Comparator.naturalOrder())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
     }
 
-    private void setSearchDtoForOneSite(ConfiguredSearch configuredSearch, List<Page> page, Site site, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws IOException {
+    private void setSearchDto(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws
+            IOException {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
+            Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
             searchDto.setSiteName(site.getName());
-            searchDto.setSite(configuredSearch.getSite());
+            searchDto.setSite(page.get(i).getSite().getUrl());
             searchDto.setUri(page.get(i).getPath());
-            Document doc = Jsoup.connect(configuredSearch.getSite() + page.get(i).getPath()).get();
+            Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
             setSearchDtoList(configuredSearch, absoluteRelevance, searchDtoList, i, searchDto, doc);
         }
     }
@@ -127,8 +126,7 @@ public class SearchServiceImp implements SearchService {
         searchDto.setTitle(title);
         String snippet = "";
         Element element = doc.select(":containsOwn(" + configuredSearch.getQuery() + ")").first();
-        if(element!=null)
-        {
+        if (element != null) {
             snippet = element.text().toLowerCase();
         }
         int indexOfTheSearchedWord = snippet.indexOf(configuredSearch.getQuery().toLowerCase());
@@ -137,33 +135,46 @@ public class SearchServiceImp implements SearchService {
                     .substring(indexOfTheSearchedWord)
                     .replace(configuredSearch.getQuery().toLowerCase(), "<b>" + configuredSearch.getQuery().toLowerCase() + "</b>")
                     .replaceAll("<br>", " ");
-            int lengthOfText = Math.min(240, s.length());
-            System.out.println(lengthOfText);
-            StringBuilder st = new StringBuilder();
-            String lines = s.substring(0, lengthOfText);
-            st.append(lines);
-            searchDto.setSnippet(st.toString());
+            StringBuilder fixedLetter = new StringBuilder();
+            boolean capitalizeNext = false;
+            for (char l : s.toCharArray()) {
+                if (Character.isLetter(l) && l != 'b') {
+                    if (capitalizeNext) {
+                        fixedLetter.append(Character.toUpperCase(l));
+                        capitalizeNext = false;
+                    } else {
+                        fixedLetter.append(l);
+                    }
+                } else {
+                    fixedLetter.append(l);
+                    if (l == '.') {
+                        capitalizeNext = true;
+                    }
+                }
+            }
+            String[] words = fixedLetter.toString().split(" ");
+            StringBuilder line = new StringBuilder();
+            StringBuilder limitedLine = new StringBuilder();
+            int lineCount = 0;
+            for (String word : words) {
+                if (line.length() + word.length() > 90) {
+                    limitedLine.append(line).append("\n");
+                    line = new StringBuilder();
+                    lineCount++;
+                    if (lineCount == 3) {
+                        break;
+                    }
+                }
+                line.append(word).append(" ");
+            }
+            limitedLine.append(line);
+            searchDto.setSnippet("<b>" + limitedLine.substring(3, 4).toUpperCase() + limitedLine.substring(4));
         }
         double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
         searchDto.setRelevance(relevance);
-        if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) {
-            searchDtoList.add(searchDto);
-        }
+        if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) searchDtoList.add(searchDto);
     }
 
-
-    private void setSearchDtoForAllSites(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws
-            IOException {
-        for (int i = 0; i < page.size(); i++) {
-            SearchDto searchDto = new SearchDto();
-            Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
-            searchDto.setSite(page.get(i).getSite().getUrl());
-            searchDto.setSiteName(site.getName());
-            searchDto.setUri(page.get(i).getPath());
-            Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
-            setSearchDtoList(configuredSearch, absoluteRelevance, searchDtoList, i, searchDto, doc);
-        }
-    }
 }
 
 

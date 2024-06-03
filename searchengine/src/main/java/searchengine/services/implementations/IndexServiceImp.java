@@ -2,14 +2,11 @@ package searchengine.services.implementations;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jsoup.Connection;
 import org.jsoup.HttpStatusException;
-import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import searchengine.Responses.IndexResponse;
-import searchengine.config.NetworkSettings;
 import searchengine.config.SitesList;
 import searchengine.lemmatization.Lemmatizater;
 import searchengine.model.*;
@@ -18,11 +15,12 @@ import searchengine.repository.IndexRepository;
 import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
+import searchengine.services.ConnecterService;
 import searchengine.services.IndexService;
 import searchengine.crawler.WebCrawler;
 import searchengine.crawler.WebCrawlerExecutor;
+import searchengine.services.LemmaService;
 import searchengine.util.LinkStructure;
-
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -37,11 +35,12 @@ public class IndexServiceImp implements IndexService {
 
     private final LemmaRepository lemmaRepository;
     public static volatile boolean stopIndexing = false;
-    private final NetworkSettings networkSettings;
     private final SitesList sitesList;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
+    private final LemmaService lemmaService;
     private final IndexRepository indexRepository;
+    private final ConnecterService connecterService;
 
     @Override
     public IndexResponse startIndexing() {
@@ -64,7 +63,7 @@ public class IndexServiceImp implements IndexService {
             site.setStatusTime(statusTime);
             site.setStatus(Status.INDEXING);
             page.setSite(site);
-            WebCrawlerExecutor webCrawlerExecutor = new WebCrawlerExecutor(networkSettings, page, pageRepository, site, siteRepository, lemmaRepository, indexTable, indexRepository, lemma);
+            WebCrawlerExecutor webCrawlerExecutor = new WebCrawlerExecutor(connecterService, page, pageRepository, site, siteRepository,lemmaService, lemmaRepository, indexTable, indexRepository, lemma);
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             executorService.submit(webCrawlerExecutor);
         }
@@ -96,34 +95,19 @@ public class IndexServiceImp implements IndexService {
         stopIndexing = false;
         List<IndexTable> indexList = new ArrayList<>();
         LinkStructure linkStructure = LinkStructure.getFromLink(link);
-        Page paths;
         LocalDateTime statusTime = LocalDateTime.now();
         Site site = siteRepository.findSiteByUrl(linkStructure.getUrl());
-        if (site == null) {
-            site = new Site();
-            site.setName(linkStructure.getNameOfSite());
-        }
-        site.setStatus(Status.INDEXING);
-        Lemma existingLemma;
-        site.setUrl(linkStructure.getUrl());
-        paths = new Page();
+        site = setSite(site, linkStructure, statusTime);
+        Page paths = new Page();
         paths.setPath(Objects.requireNonNullElse(linkStructure.getPath(), ""));
-        site.setStatusTime(statusTime);
         updatePath(site, paths);
         try {
-            Connection.Response connection = Jsoup.connect(link).ignoreContentType(true)
-                    .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(7)).toString())
-                    .referrer(networkSettings.getReferrer())
-                    .timeout(networkSettings.getTimeout())
-                    .followRedirects(false)
-                    .execute();
-            Document document = connection.parse();
-            if (document.connection().response().statusCode() < HttpStatus.BAD_REQUEST.value()) {
-                paths.setCode(document.connection().response().statusCode());
-                String content = document.html();
-                paths.setContent(content);
+            Document connection = connecterService.connect(link);
+            if (connection.connection().response().statusCode() < HttpStatus.BAD_REQUEST.value()) {
+                paths.setCode(connection.connection().response().statusCode());
+                paths.setContent(connection.html());
                 paths.setSite(site);
-                String words = document.text();
+                String words = connection.text();
                 HashMap<String, Integer> calculatedRussianWords = Lemmatizater.splitTextIntoWords(words);
                 siteRepository.save(site);
                 pageRepository.save(paths);
@@ -133,24 +117,7 @@ public class IndexServiceImp implements IndexService {
                         lemmaRepository.deleteBySiteId(site.getId());
                         return new IndexResponse(false, "Индексация остановлена пользователем");
                     }
-                    IndexTable indexTable = new IndexTable();
-                    indexTable.setPage(paths);
-                    String lemmaText = entry.getKey();
-                    existingLemma = lemmaRepository.findLemmaBySiteId(lemmaText, site.getId());
-                    if (existingLemma == null) {
-                        existingLemma = new Lemma();
-                        existingLemma.setSite(site);
-                        existingLemma.setLemma(lemmaText);
-                        existingLemma.setFrequency(1);
-                        lemmaRepository.save(existingLemma);
-                    } else {
-                        existingLemma.setSite(paths.getSite());
-                        existingLemma.setFrequency(existingLemma.getFrequency() + 1);
-                        lemmaRepository.save(existingLemma);
-                    }
-                    indexTable.setLemma(existingLemma);
-                    indexTable.setRank(entry.getValue());
-                    indexList.add(indexTable);
+                    setAndInitializeIndexList(entry, paths, site, indexList);
                 }
                 indexRepository.saveAll(indexList);
                 site.setStatus(Status.INDEXED);
@@ -159,44 +126,58 @@ public class IndexServiceImp implements IndexService {
             }
         } catch (HttpStatusException e) {
             log.info("Url Неверный");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
         return new
                 IndexResponse(false, "Данная страница находится за пределами сайтов,\n" +
                 "указанных в конфигурационном файле");
     }
 
+    private Site setSite(Site site, LinkStructure linkStructure, LocalDateTime statusTime) {
+        if (site == null) {
+            site = new Site();
+            site.setName(linkStructure.getNameOfSite());
+        }
+        site.setStatus(Status.INDEXING);
+        site.setUrl(linkStructure.getUrl());
+        site.setStatusTime(statusTime);
+        return site;
+    }
+
+    private void setAndInitializeIndexList(Map.Entry<String, Integer> entry, Page paths, Site site, List<IndexTable> indexList) {
+        IndexTable indexTable = new IndexTable();
+        indexTable.setPage(paths);
+        String lemmaText = entry.getKey();
+        Lemma existingLemma = lemmaService.getLemma(lemmaText, site);
+        indexTable.setLemma(existingLemma);
+        indexTable.setRank(entry.getValue());
+        indexList.add(indexTable);
+    }
+
+
     @Override
     public boolean isIndexing() {
         List<Site> site = siteRepository.findAll();
-        for (Site siteUrlInfo : site) {
-            if (siteUrlInfo.getStatus().equals(Status.INDEXING)) {
-                return true;
-            }
-        }
-        return false;
+        return site.stream().anyMatch(siteUrlInfo -> siteUrlInfo.getStatus().equals(Status.INDEXING));
     }
 
     public void updatePath(Site site, Page page) {
         List<Page> existingPage = pageRepository.findPageBySiteId(site.getId());
-        for (Page page1 : existingPage) {
-            if (page1 != null && page1.getPath().equals(page.getPath())) {
-                List<Integer> lemmaId = indexRepository.findLemmasIdByPageId(page1.getId());
-                List<Lemma> lemmaList = lemmaRepository.findByLemmaIds(lemmaId);
-                for (Lemma perLemma : lemmaList) {
-                    if (perLemma.getFrequency() > 1) {
-                        perLemma.setFrequency(perLemma.getFrequency() - 1);
-                        lemmaRepository.save(perLemma);
-                    } else {
-                        lemmaRepository.delete(perLemma);
-                    }
+        existingPage.stream().filter(page1 -> page1 != null && page1.getPath().equals(page.getPath())).forEach(page1 -> {
+            List<Integer> lemmaId = indexRepository.findLemmasIdByPageId(page1.getId());
+            List<Lemma> lemmaList = lemmaRepository.findByLemmaIds(lemmaId);
+            lemmaList.forEach(perLemma -> {
+                if (perLemma.getFrequency() > 1) {
+                    perLemma.setFrequency(perLemma.getFrequency() - 1);
+                    lemmaRepository.save(perLemma);
                 }
-                pageRepository.deleteById(page1.getId());
-                indexRepository.deleteByPageId(page1.getId());
-            }
-        }
+                lemmaRepository.delete(perLemma);
+            });
+            pageRepository.deleteById(page1.getId());
+            indexRepository.deleteByPageId(page1.getId());
+        });
     }
-
-
 
 
 }

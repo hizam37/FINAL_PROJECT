@@ -14,6 +14,9 @@ import searchengine.repository.IndexRepository;
 import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
+import searchengine.services.ConnecterService;
+import searchengine.services.LemmaService;
+
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -27,12 +30,13 @@ import static java.lang.Thread.sleep;
 public class WebCrawler extends RecursiveAction {
 
     private final CopyOnWriteArrayList<Page> pages = new CopyOnWriteArrayList<>();
-    private final NetworkSettings networkSettings;
+    private final ConnecterService connecterService;
     private Page path;
     public static volatile boolean stop = false;
     private final PageRepository pageRepository;
     private Site site;
     private final SiteRepository siteRepository;
+    private final LemmaService lemmaService;
     private final LemmaRepository lemmaRepository;
     private IndexTable indexTable;
     private IndexRepository indexRepository;
@@ -53,35 +57,24 @@ public class WebCrawler extends RecursiveAction {
                 addChildren(path);
                 path.setSite(site);
                 try {
-                    if (stop) {
-                        return;
-                    }
+                    if (stop) return;
                     sleep(5000);
-                    Result result = connect(perLink);
-                    path.setCode(result.connection().statusCode());
-                    String content = result.document().html();
-                    String wordsPerPath = result.document().text();
+                    Document result = connecterService.connect(perLink);
+                    path.setCode(result.connection().response().statusCode());
+                    String content = result.connection().get().html();
+                    String wordsPerPath = result.text();
                     path.setContent(content);
                     pageRepository.save(path);
                     indexTable.setPage(path);
                     HashMap<String, Integer> calculatedRussianWords = Lemmatizater.splitTextIntoWords(wordsPerPath);
                     for (Map.Entry<String, Integer> entry : calculatedRussianWords.entrySet()) {
+                        String key = entry.getKey();
+                        Integer value = entry.getValue();
                         IndexTable indexTable = new IndexTable();
                         indexTable.setPage(path);
-                        String lemma = entry.getKey();
-                        Lemma existingLemma = lemmaRepository.findByLemma(lemma);
-                        if (existingLemma == null) {
-                            existingLemma = new Lemma();
-                            existingLemma.setSite(site);
-                            existingLemma.setLemma(lemma);
-                            existingLemma.setFrequency(1);
-                            lemmaRepository.save(existingLemma);
-                        } else {
-                            existingLemma.setFrequency(existingLemma.getFrequency() + 1);
-                            lemmaRepository.save(existingLemma);
-                        }
+                        Lemma existingLemma = lemmaService.getLemma(key, site);
                         indexTable.setLemma(existingLemma);
-                        indexTable.setRank(entry.getValue());
+                        indexTable.setRank(value);
                         indexList.add(indexTable);
                     }
                     indexRepository.saveAll(indexList);
@@ -96,28 +89,13 @@ public class WebCrawler extends RecursiveAction {
         site.setStatus(Status.INDEXED);
         CopyOnWriteArrayList<WebCrawler> mapOfSiteTasks = new CopyOnWriteArrayList<>();
         for (Page page : getPages()) {
-            WebCrawler webCrawlerTask = new WebCrawler(networkSettings, page, pageRepository, site, siteRepository, lemmaRepository, indexTable, indexRepository, lemma);
+            WebCrawler webCrawlerTask = new WebCrawler(connecterService, page, pageRepository, site, siteRepository, lemmaService,lemmaRepository, indexTable, indexRepository, lemma);
             mapOfSiteTasks.add(webCrawlerTask);
             webCrawlerTask.fork();
         }
         mapOfSiteTasks.forEach(ForkJoinTask::join);
     }
 
-    private Result connect(String perLink) throws IOException, InterruptedException {
-        sleep(5000);
-        Connection.Response connection = Jsoup.connect(perLink)
-                .ignoreContentType(true)
-                .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(6)).toString())
-                .referrer(networkSettings.getReferrer())
-                .timeout(networkSettings.getTimeout())
-                .followRedirects(false)
-                .execute();
-        Document document = connection.parse();
-        return new Result(connection, document);
-    }
-
-    private record Result(Connection.Response connection, Document document) {
-    }
 
     public void addChildren(Page page) {
         pages.add(page);
@@ -128,8 +106,8 @@ public class WebCrawler extends RecursiveAction {
         ConcurrentSkipListSet<String> urls = new ConcurrentSkipListSet<>();
         try {
             sleep(150);
-            Result result = connect(url);
-            Elements elements = result.document.select("body").select("a");
+            Document result = connecterService.connect(url);
+            Elements elements = result.select("body").select("a");
             for (Element perElement : elements) {
                 String link = perElement.absUrl("href");
                 if (isLink(link) && !isFile(link)) {
