@@ -21,6 +21,7 @@ import searchengine.crawler.WebCrawler;
 import searchengine.crawler.WebCrawlerExecutor;
 import searchengine.services.LemmaService;
 import searchengine.util.LinkStructure;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -63,7 +64,7 @@ public class IndexServiceImp implements IndexService {
             site.setStatusTime(statusTime);
             site.setStatus(Status.INDEXING);
             page.setSite(site);
-            WebCrawlerExecutor webCrawlerExecutor = new WebCrawlerExecutor(connecterService, page, pageRepository, site, siteRepository,lemmaService, lemmaRepository, indexTable, indexRepository, lemma);
+            WebCrawlerExecutor webCrawlerExecutor = new WebCrawlerExecutor(connecterService, page, pageRepository, site, siteRepository, lemmaService, lemmaRepository, indexTable, indexRepository, lemma);
             ExecutorService executorService = Executors.newSingleThreadExecutor();
             executorService.submit(webCrawlerExecutor);
         }
@@ -171,8 +172,9 @@ public class IndexServiceImp implements IndexService {
                 if (perLemma.getFrequency() > 1) {
                     perLemma.setFrequency(perLemma.getFrequency() - 1);
                     lemmaRepository.save(perLemma);
+                } else {
+                    lemmaRepository.delete(perLemma);
                 }
-                lemmaRepository.delete(perLemma);
             });
             pageRepository.deleteById(page1.getId());
             indexRepository.deleteByPageId(page1.getId());
