@@ -20,8 +20,9 @@ public class LemmaServiceImp implements LemmaService {
             existingLemma.setSite(site);
             existingLemma.setLemma(lemmaText);
             existingLemma.setFrequency(1);
+        }else {
+            existingLemma.setFrequency(existingLemma.getFrequency() + 1);
         }
-        existingLemma.setFrequency(existingLemma.getFrequency() + 1);
         lemmaRepository.save(existingLemma);
         return existingLemma;
     }
