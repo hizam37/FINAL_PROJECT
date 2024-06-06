@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface SearchService {
 
-    List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException;
-    List<SearchDto> searchByAllSites(ConfiguredSearch configuredSearch) throws IOException;
+    List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException, InterruptedException;
+    List<SearchDto> searchByAllSites(ConfiguredSearch configuredSearch) throws IOException, InterruptedException;
 
 }

@@ -51,7 +51,7 @@ public class StatisticsController {
 
 
     @GetMapping("/search")
-    public ResponseEntity<?> search(ConfiguredSearch configuredSearch, @RequestParam(defaultValue = "20") int pageSize) throws IOException {
+    public ResponseEntity<?> search(ConfiguredSearch configuredSearch, @RequestParam(defaultValue = "20") int pageSize) throws IOException, InterruptedException {
         List<SearchDto> searchResponse = configuredSearch.getSite() == null ? searchService.searchByAllSites(configuredSearch) : searchService.searchBySite(configuredSearch);
         int totalResults = searchResponse.size();
         int startIndex = 0;

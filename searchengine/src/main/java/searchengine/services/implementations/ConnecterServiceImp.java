@@ -18,7 +18,7 @@ public class ConnecterServiceImp implements ConnecterService {
 
     @Override
     public Document connect(String perLink) throws IOException, InterruptedException {
-            sleep(5000);
+        sleep(300);
             Connection.Response connection = Jsoup.connect(perLink)
                     .ignoreContentType(true)
                     .userAgent(networkSettings.getUserAgents().get(new Random().nextInt(6)).toString())
@@ -27,7 +27,6 @@ public class ConnecterServiceImp implements ConnecterService {
                     .followRedirects(false)
                     .execute();
         return connection.parse();
-
     }
 
 }

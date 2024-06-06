@@ -2,6 +2,7 @@ package searchengine.services.implementations;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -117,13 +118,21 @@ public class SearchServiceImp implements SearchService {
             searchDto.setSite(page.get(i).getSite().getUrl());
             searchDto.setUri(page.get(i).getPath());
             Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
-            setSearchDtoList(configuredSearch, absoluteRelevance, searchDtoList, i, searchDto, doc);
+            double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
+            searchDto.setRelevance(relevance);
+            String title = doc.title();
+            searchDto.setTitle(title);
+            setSnippetsInSearchDtoList(configuredSearch, searchDtoList, searchDto, doc);
         }
     }
 
-    private void setSearchDtoList(ConfiguredSearch configuredSearch, List<Long> absoluteRelevance, List<SearchDto> searchDtoList, int i, SearchDto searchDto, Document doc) {
-        String title = doc.title();
-        searchDto.setTitle(title);
+    private void setSnippetsInSearchDtoList(ConfiguredSearch configuredSearch, List<SearchDto> searchDtoList, SearchDto searchDto, Document doc) {
+        setSnippet(configuredSearch, searchDto, doc);
+        if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) searchDtoList.add(searchDto);
+    }
+
+
+    private void setSnippet(ConfiguredSearch configuredSearch, SearchDto searchDto, Document doc) {
         String snippet = "";
         Element element = doc.select(":containsOwn(" + configuredSearch.getQuery() + ")").first();
         if (element != null) {
@@ -137,46 +146,52 @@ public class SearchServiceImp implements SearchService {
                     .replaceAll("<br>", " ");
             StringBuilder fixedLetter = new StringBuilder();
             boolean capitalizeNext = false;
-            for (char l : s.toCharArray()) {
-                if (Character.isLetter(l) && l != 'b') {
-                    if (capitalizeNext) {
-                        fixedLetter.append(Character.toUpperCase(l));
-                        capitalizeNext = false;
-                    } else {
-                        fixedLetter.append(l);
-                    }
-                } else {
-                    fixedLetter.append(l);
-                    if (l == '.') {
-                        capitalizeNext = true;
-                    }
-                }
-            }
+            linesFormatter(s, capitalizeNext, fixedLetter);
             String[] words = fixedLetter.toString().split(" ");
             StringBuilder line = new StringBuilder();
-            StringBuilder limitedLine = new StringBuilder();
-            int lineCount = 0;
-            for (String word : words) {
-                if (line.length() + word.length() > 90) {
-                    limitedLine.append(line).append("\n");
-                    line = new StringBuilder();
-                    lineCount++;
-                    if (lineCount == 3) {
-                        break;
-                    }
-                }
-                line.append(word).append(" ");
-            }
-            limitedLine.append(line);
-            searchDto.setSnippet("<b>" + limitedLine.substring(3, 4).toUpperCase() + limitedLine.substring(4));
+            String createdSnippet = getLimitedLines(words, line);
+            searchDto.setSnippet(createdSnippet);
         }
-        double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
-        searchDto.setRelevance(relevance);
-        if (searchDto.getSnippet() != null && !searchDto.getSnippet().isEmpty()) searchDtoList.add(searchDto);
+    }
+
+    @NotNull
+    private String getLimitedLines(String[] words, StringBuilder line) {
+        StringBuilder limitedLine = new StringBuilder();
+        int lineCount = 0;
+        for (String word : words) {
+            if (line.length() + word.length() > 90) {
+                limitedLine.append(line).append("\n");
+                line = new StringBuilder();
+                lineCount++;
+                if (lineCount == 3) {
+                    break;
+                }
+            }
+            line.append(word).append(" ");
+        }
+        limitedLine.append(line);
+        return "<b>" + limitedLine.substring(3, 4).toUpperCase() + limitedLine.substring(4);
+    }
+
+    private void linesFormatter(String s, boolean capitalizeNext, StringBuilder fixedLetter) {
+        for (char l : s.toCharArray()) {
+            if (Character.isLetter(l) && l != 'b') {
+                if (capitalizeNext) {
+                    fixedLetter.append(Character.toUpperCase(l));
+                    capitalizeNext = false;
+                } else {
+                    fixedLetter.append(l);
+                }
+            } else {
+                fixedLetter.append(l);
+                if (l == '.') {
+                    capitalizeNext = true;
+                }
+            }
+        }
     }
 
 }
-
 
 
 
