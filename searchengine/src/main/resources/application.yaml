@@ -20,7 +20,7 @@ indexing-settings:
   sites:
     - url: http://www.playback.ru
       name: playback
-    - url: https://goodcom.ru
+    - url: https://www.goodcom.ru
       name: goodcom
 network-settings:
   userAgents:

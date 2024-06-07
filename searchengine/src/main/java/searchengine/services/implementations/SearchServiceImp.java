@@ -18,6 +18,7 @@ import searchengine.repository.IndexRepository;
 import searchengine.repository.LemmaRepository;
 import searchengine.repository.PageRepository;
 import searchengine.repository.SiteRepository;
+import searchengine.services.ConnecterService;
 import searchengine.services.SearchService;
 
 import java.io.IOException;
@@ -33,9 +34,10 @@ public class SearchServiceImp implements SearchService {
     private final PageRepository pageRepository;
     private final SiteRepository siteRepository;
     private final LemmaRepository lemmaRepository;
+    private final ConnecterService connecterService;
 
     @Override
-    public List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException {
+    public List<SearchDto> searchBySite(ConfiguredSearch configuredSearch) throws IOException, InterruptedException {
         List<SearchDto> searchDtoList = new ArrayList<>();
         Site site = siteRepository.findSiteByUrl(configuredSearch.getSite());
         if (site.getUrl().equals(configuredSearch.getSite())) {
@@ -70,7 +72,7 @@ public class SearchServiceImp implements SearchService {
 
 
     @Override
-    public List<SearchDto> searchByAllSites(ConfiguredSearch configuredSearch) throws IOException {
+    public List<SearchDto> searchByAllSites(ConfiguredSearch configuredSearch) throws IOException, InterruptedException {
         List<SearchDto> searchDtoList = new ArrayList<>();
         Map<String, Integer> filteredLemmas = Lemmatizater.splitTextIntoWords(configuredSearch.getQuery());
         Map<String, Double> wordsWithFrequencies = new HashMap<>();
@@ -110,14 +112,14 @@ public class SearchServiceImp implements SearchService {
     }
 
     private void setSearchDto(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws
-            IOException {
+            IOException, InterruptedException {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             Site site = siteRepository.findSiteById(page.get(i).getSite().getId());
             searchDto.setSiteName(site.getName());
             searchDto.setSite(page.get(i).getSite().getUrl());
             searchDto.setUri(page.get(i).getPath());
-            Document doc = Jsoup.connect(site.getUrl() + page.get(i).getPath()).get();
+            Document doc = Jsoup.parse(page.get(i).getContent());
             double relevance = (double) (absoluteRelevance.get(i) / Collections.max(absoluteRelevance));
             searchDto.setRelevance(relevance);
             String title = doc.title();
