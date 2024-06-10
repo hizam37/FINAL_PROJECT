@@ -111,8 +111,7 @@ public class SearchServiceImp implements SearchService {
         return wordsWithFrequencies.entrySet().stream().sorted(Map.Entry.comparingByValue(Comparator.naturalOrder())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
     }
 
-    private void setSearchDto(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) throws
-            IOException, InterruptedException {
+    private void setSearchDto(ConfiguredSearch configuredSearch, List<Page> page, List<Long> absoluteRelevance, List<SearchDto> searchDtoList) {
         for (int i = 0; i < page.size(); i++) {
             SearchDto searchDto = new SearchDto();
             Site site = siteRepository.findSiteById(page.get(i).getSite().getId());

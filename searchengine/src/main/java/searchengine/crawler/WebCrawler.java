@@ -53,8 +53,6 @@ public class WebCrawler extends RecursiveAction {
                 addChildren(path);
                 path.setSite(site);
                 try {
-                    if (stop) return;
-                    sleep(5000);
                     Document result = connecterService.connect(perLink);
                     path.setCode(result.connection().response().statusCode());
                     String content = result.connection().get().html();
@@ -64,6 +62,7 @@ public class WebCrawler extends RecursiveAction {
                     indexTable.setPage(path);
                     HashMap<String, Integer> calculatedRussianWords = Lemmatizater.splitTextIntoWords(wordsPerPath);
                     for (Map.Entry<String, Integer> entry : calculatedRussianWords.entrySet()) {
+                        if (stop) return;
                         String key = entry.getKey();
                         Integer value = entry.getValue();
                         IndexTable indexTable = new IndexTable();
@@ -101,7 +100,6 @@ public class WebCrawler extends RecursiveAction {
     public ConcurrentSkipListSet<String> getUrls(String url) {
         ConcurrentSkipListSet<String> urls = new ConcurrentSkipListSet<>();
         try {
-            sleep(150);
             Document result = connecterService.connect(url);
             Elements elements = result.select("body").select("a");
             for (Element perElement : elements) {
